@@ -1,0 +1,133 @@
+module Segway_tb();
+
+//// Interconnects to DUT/support defined as type wire /////
+wire SS_n,SCLK,MOSI,MISO,INT;               // to inertial sensor
+wire A2D_SS_n,A2D_SCLK,A2D_MOSI,A2D_MISO;   // to A2D converter
+wire RX_TX;
+wire PWM_rev_rght, PWM_frwrd_rght, PWM_rev_lft, PWM_frwrd_lft;
+wire piezo,piezo_n;
+
+////// Stimulus is declared as type reg ///////
+reg clk, RST_n;
+reg [7:0] cmd;                  // command host is sending to DUT
+reg send_cmd;                   // asserted to initiate sending of command
+reg signed [13:0] rider_lean;   // forward/backward lean (goes to SegwayModel)
+reg [11:0] left_load, right_load, batt; // A2D conversions (to ADC128S)
+// Perhaps more needed?
+
+
+/////// declare any internal signals needed at this level //////
+wire cmd_sent;
+// Perhaps more needed?
+
+
+////////////////////////////////////////////////////////////////
+// Instantiate Physical Model of Segway with Inertial sensor //
+//////////////////////////////////////////////////////////////
+SegwayModel iPHYS(.clk(clk),.RST_n(RST_n),.SS_n(SS_n),.SCLK(SCLK),
+                  .MISO(MISO),.MOSI(MOSI),.INT(INT),.PWM_rev_rght(PWM_rev_rght),
+                  .PWM_frwrd_rght(PWM_frwrd_rght),.PWM_rev_lft(PWM_rev_lft),
+                  .PWM_frwrd_lft(PWM_frwrd_lft),.rider_lean(rider_lean));
+
+/////////////////////////////////////////////////////////
+// Instantiate Model of A2D for load cell and battery //
+///////////////////////////////////////////////////////
+//  What is this?  You need to build some kind of wrapper around ADC128S.sv or perhaps
+//  around SPI_ADC128S.sv that mimics the behavior of the A2D converter on the DE0 used
+//  to read ld_cell_lft, ld_cell_rght and battery
+ADC128S iADC(.clk(clk),.rst_n(RST_n),.SS_n(A2D_SS_n),.SCLK(A2D_SCLK),.MISO(A2D_MISO),.MOSI(A2D_MOSI),
+            .left_load(left_load),.right_load(right_load),.batt(batt));
+
+////// Instantiate DUT ////////
+Segway iDUT(.clk(clk),.RST_n(RST_n),.LED(),.INERT_SS_n(SS_n),.INERT_MOSI(MOSI),
+            .INERT_SCLK(SCLK),.INERT_MISO(MISO),.A2D_SS_n(A2D_SS_n),
+            .A2D_MOSI(A2D_MOSI),.A2D_SCLK(A2D_SCLK),.A2D_MISO(A2D_MISO),
+            .INT(INT),.PWM_rev_rght(PWM_rev_rght),.PWM_frwrd_rght(PWM_frwrd_rght),
+            .PWM_rev_lft(PWM_rev_lft),.PWM_frwrd_lft(PWM_frwrd_lft),
+            .piezo_n(piezo_n),.piezo(piezo),.RX(RX_TX));
+
+
+
+//// Instantiate UART_tx (mimics command from BLE module) //////
+//// You need something to send the 'g' for go ////////////////
+UART_tx iTX(.clk(clk),.rst_n(RST_n),.TX(RX_TX),.trmt(send_cmd),.tx_data(cmd),.tx_done(cmd_sent));
+
+
+initial begin
+    Initialize;       // perhaps you make a task that initializes everything?
+
+    //CheckAuth; //Check auth block
+
+
+    SendCmd(8'h67);   // perhaps you have a task that sends 'g'
+
+    //TestLoad(12'h800, 12'h100);
+
+    //EnableSteer;
+
+    SetLean(16'h0000);
+    TestLoad(12'h182, 12'h182);   
+    repeat(300000) @(posedge clk); 
+
+    TestLoad(12'h280, 12'h080);
+    
+
+    //force iDUT.ld_cell_diff = 0;
+
+    //SetLean(16'h1fff);
+    //SetLean(16'h2000);
+
+    //TestLean(16'h1fff);
+    //TestLean(16'h2000);
+    //TestLean(16'h0000);
+    //TestLean(16'h1fff);
+    //TestLean(16'h0000);
+
+    //TestLoad(12'h180, 12'h800);
+    //TestLoad(12'h800, 12'h180);
+
+
+    //SetLean(16'h1fff);
+
+    //TestLoad(12'h180, 12'h800);
+    //TestLoad(12'h800, 12'h180);
+
+    //TestLoad(12'h800, 12'h010);
+
+    //SetLeanQuick(16'h2000);
+    //SetLeanQuick(16'h1fff);
+    //SetLeanQuick(16'h2000);
+    //SetLeanQuick(16'h1fff);
+    //SetLeanQuick(16'h2000);
+    //SetLeanQuick(16'h1fff);
+    //SetLeanQuick(16'h2000);
+    //SetLeanQuick(16'h1fff);
+    //SetLeanQuick(16'h2000);
+    //SetLeanQuick(16'h1fff);
+    //SetLeanQuick(16'h2000);
+    //SetLeanQuick(16'h1fff);
+    //SetLeanQuick(16'h2000);
+    //SetLeanQuick(16'h1fff);
+    //SetLeanQuick(16'h2000);
+    //SetLeanQuick(16'h1fff);
+
+    //TryTooFast(16'h1fff);
+    //SetLean(16'h0000);
+    //TryTooFast(16'h2001);
+
+    $stop();
+    ////  .
+    ////  .   // this is the "guts" of your test
+    ////  .
+
+    //$display("YAHOO! test passed!");
+
+    //$stop();
+end
+
+always
+  #10 clk = ~clk;
+
+`include "tb_tasks.sv"   //perhaps you have a separate included file that has handy tasks.
+
+endmodule
